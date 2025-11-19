@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#80000000"
+    android:padding="32dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:gravity="center"
+        android:background="?android:attr/colorBackground"
+        android:elevation="16dp">
+
+        <!-- Emoji/Icon -->
+        <TextView
+            android:id="@+id/iconTv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🚨"
+            android:textSize="64sp"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/titleTv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="FALL DETECTED!"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="8dp"/>
+
+        <!-- Detail Text -->
+        <TextView
+            android:id="@+id/detailTv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Countdown Timer -->
+        <TextView
+            android:id="@+id/countdownTv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="15"
+            android:textColor="#FF5722"
+            android:textSize="48sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="seconds remaining"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Cancel Button -->
+        <Button
+            android:id="@+id/cancelBtn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="I'M OKAY - CANCEL"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:padding="16dp"
+            style="?android:attr/buttonBarButtonStyle"/>
+
+    </LinearLayout>
+
+
+</FrameLayout>
+

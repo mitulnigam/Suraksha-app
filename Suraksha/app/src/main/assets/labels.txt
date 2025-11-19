@@ -1,0 +1,11 @@
+drop_pickup_1s
+drop_pickup_2s
+drop_pickup_3s
+drop_pickup_4s
+drop_pickup_5s
+drop_left
+sim_fall
+real_fall
+no_fall
+phone_drop
+

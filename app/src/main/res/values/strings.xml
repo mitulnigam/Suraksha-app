@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Suraksha</string>
+    <string name="accessibility_s_gesture_description">Detect an S gesture to trigger SOS emergency alert.</string>
+    <string name="status">Status</string>
+    <string name="sensor_logger_title">Sensor Logger</string>
+    <string name="sensor_logger_start">Start</string>
+    <string name="sensor_logger_stop">Stop</string>
+    <string name="sensor_logger_label_hint">Label (e.g., shake test on table)</string>
+    <string name="sensor_logger_help">• This tool records ACC/GYR at ~50 Hz.
+• It includes last 5s prebuffer.
+• CSV is saved in app external files/sensor_logs.</string>
+</resources>
