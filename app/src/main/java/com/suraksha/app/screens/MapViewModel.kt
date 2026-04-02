@@ -1,4 +1,4 @@
-﻿package com.suraksha.app.screens
+package com.suraksha.app.screens
 
 import android.Manifest
 import android.app.Application
@@ -7,21 +7,25 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.libraries.places.api.Places
-import com.google.android.libraries.places.api.model.CircularBounds
-import com.google.android.libraries.places.api.model.Place.Field
-import com.google.android.libraries.places.api.net.PlacesClient
-import com.google.android.libraries.places.api.net.SearchByTextRequest
+// Replace Google LatLng with OSMDroid GeoPoint
+import org.osmdroid.util.GeoPoint
 import com.suraksha.app.utils.LocationManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.io.IOException
 
 data class MapState(
-    val userLocation: LatLng? = null,
+    val userLocation: GeoPoint? = null,
     val safeHavens: List<SafeHaven> = emptyList(),
     val isLoading: Boolean = true
 )
@@ -29,8 +33,8 @@ data class MapState(
 data class SafeHaven(
     val id: String,
     val name: String,
-    val address: String,
-    val location: LatLng,
+    val address: String, // Keeping address to maintain UI compatibility
+    val location: GeoPoint,
     val type: SafeHavenType
 )
 
@@ -42,19 +46,7 @@ enum class SafeHavenType {
 class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     private val locationManager = LocationManager()
-    private val placesClient: PlacesClient? by lazy {
-        try {
-            if (Places.isInitialized()) {
-                Places.createClient(application)
-            } else {
-                Log.e("MapViewModel", "Places SDK is not initialized. Cannot create PlacesClient.")
-                null
-            }
-        } catch (e: Exception) {
-            Log.e("MapViewModel", "Failed to create PlacesClient: ${e.message}", e)
-            null
-        }
-    }
+    private val httpClient = OkHttpClient()
 
     private val _mapState = MutableStateFlow(MapState())
     val mapState: StateFlow<MapState> = _mapState.asStateFlow()
@@ -66,15 +58,11 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         startLocationUpdates()
     }
 
-    
     fun refreshMap() {
-        Log.d("MapViewModel", "ðŸ”„ Refreshing map data...")
-
+        Log.d("MapViewModel", "🔄 Refreshing map data...")
         _mapState.value = MapState(isLoading = true)
         hasSearched = false
-
         locationCollectionJob?.cancel()
-
         startLocationUpdates()
     }
 
@@ -82,26 +70,24 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
         locationCollectionJob = viewModelScope.launch {
             locationManager.getLocationUpdates(getApplication())
                 .catch { e ->
-                    Log.e("MapViewModel", "âŒ Error getting location updates: ${e.message}")
+                    Log.e("MapViewModel", "❌ Error getting location updates: ${e.message}")
                     _mapState.value = _mapState.value.copy(isLoading = false)
                 }
                 .collect { location ->
-                    val newLatLng = LatLng(location.latitude, location.longitude)
-                    Log.d("MapViewModel", "ðŸ“ Location update: $newLatLng")
-                    _mapState.value = _mapState.value.copy(userLocation = newLatLng, isLoading = false)
+                    val newGeoPoint = GeoPoint(location.latitude, location.longitude)
+                    Log.d("MapViewModel", "📍 Location update: $newGeoPoint")
+                    _mapState.value = _mapState.value.copy(userLocation = newGeoPoint, isLoading = false)
 
                     if (!hasSearched) {
                         hasSearched = true
-                        Log.d("MapViewModel", "ðŸ” Starting search for safe havens at location: $newLatLng")
-
-                        searchForSafeHavens(newLatLng, "police station near me", SafeHavenType.POLICE)
-                        searchForSafeHavens(newLatLng, "hospital near me", SafeHavenType.HOSPITAL)
+                        Log.d("MapViewModel", "🔍 Starting search for safe havens at location: $newGeoPoint")
+                        searchOverpassSafeHavens(newGeoPoint)
                     }
                 }
         }
     }
 
-    private fun searchForSafeHavens(location: LatLng, typeQuery: String, havenType: SafeHavenType) {
+    private fun searchOverpassSafeHavens(location: GeoPoint) {
         val context = getApplication<Application>().applicationContext
 
         if (ContextCompat.checkSelfPermission(
@@ -114,84 +100,110 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val client = placesClient
-        if (client == null) {
-            Log.e("MapViewModel", "âš ï¸ PlacesClient is null. Safe havens search disabled. Map will still show your location.")
+        viewModelScope.launch(Dispatchers.IO) {
+            _mapState.value = _mapState.value.copy(isLoading = true)
+            
+            // Query for police and hospitals within 5000m
+            val query = """
+                [out:json][timeout:25];
+                (
+                  node["amenity"="police"](around:5000,${location.latitude},${location.longitude});
+                  way["amenity"="police"](around:5000,${location.latitude},${location.longitude});
+                  node["amenity"="hospital"](around:5000,${location.latitude},${location.longitude});
+                  way["amenity"="hospital"](around:5000,${location.latitude},${location.longitude});
+                  node["healthcare"="hospital"](around:5000,${location.latitude},${location.longitude});
+                  way["healthcare"="hospital"](around:5000,${location.latitude},${location.longitude});
+                );
+                out center;
+            """.trimIndent()
 
-            return
-        }
+            val mediaType = "application/x-www-form-urlencoded".toMediaType()
+            val requestBody = "data=${java.net.URLEncoder.encode(query, "UTF-8")}".toRequestBody(mediaType)
 
-        try {
-            val placeFields = listOf(Field.ID, Field.NAME, Field.LAT_LNG, Field.ADDRESS)
-            val locationRestriction = CircularBounds.newInstance(location, 5000.0)
-
-            Log.d("MapViewModel", "ðŸ” Searching for '$typeQuery' near location: $location with 5km radius")
-
-            val searchByTextRequest = SearchByTextRequest.builder(typeQuery, placeFields)
-                .setLocationRestriction(locationRestriction)
-                .setMaxResultCount(20)
-                .setRankPreference(SearchByTextRequest.RankPreference.DISTANCE)
+            val request = Request.Builder()
+                .url("https://overpass-api.de/api/interpreter")
+                .post(requestBody)
                 .build()
 
-            client.searchByText(searchByTextRequest).addOnSuccessListener { response ->
-                Log.d("MapViewModel", "âœ… Search response received for $typeQuery. Total places: ${response.places.size}")
-
-                val newHavens = response.places.mapNotNull { place ->
-                    try {
-                        if (place.latLng != null && place.id != null && place.name != null) {
-                            val address = place.address ?: "Address not available"
-                            Log.d("MapViewModel", "ðŸ“ Place: ${place.name} at ${place.latLng}")
-                            SafeHaven(
-                                id = place.id!!,
-                                name = place.name!!,
-                                address = address,
-                                location = place.latLng!!,
-                                type = havenType
+            try {
+                val response = httpClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    if (responseBody != null) {
+                        val parsedHavens = parseOverpassResponse(responseBody)
+                        withContext(Dispatchers.Main) {
+                            _mapState.value = _mapState.value.copy(
+                                safeHavens = parsedHavens,
+                                isLoading = false
                             )
-                        } else {
-                            Log.w("MapViewModel", "âš ï¸ Place missing required fields: id=${place.id}, name=${place.name}, latLng=${place.latLng}")
-                            null
                         }
-                    } catch (e: Exception) {
-                        Log.e("MapViewModel", "âŒ Error processing place: ${e.message}", e)
-                        null
+                    } else {
+                        Log.e("MapViewModel", "Overpass response body is null")
+                        withContext(Dispatchers.Main) { _mapState.value = _mapState.value.copy(isLoading = false) }
                     }
-                }
-
-                Log.d("MapViewModel", "âœ… Successfully processed ${newHavens.size} havens of type: $typeQuery")
-
-                if (newHavens.isNotEmpty()) {
-                    newHavens.forEach { haven ->
-                        Log.d("MapViewModel", "  - ${haven.name} at ${haven.location}")
-                    }
-                }
-
-                val currentHavens = _mapState.value.safeHavens
-                val existingIds = currentHavens.map { it.id }.toSet()
-                val uniqueNewHavens = newHavens.filter { it.id !in existingIds }
-                
-                if (uniqueNewHavens.isNotEmpty()) {
-                    _mapState.value = _mapState.value.copy(
-                        safeHavens = currentHavens + uniqueNewHavens,
-                        isLoading = false
-                    )
-                    Log.d("MapViewModel", "Added ${uniqueNewHavens.size} new unique havens (${newHavens.size - uniqueNewHavens.size} duplicates filtered)")
                 } else {
-                    _mapState.value = _mapState.value.copy(isLoading = false)
-                    Log.d("MapViewModel", "No new unique havens to add (all were duplicates)")
+                    Log.e("MapViewModel", "Overpass search failed with code: ${response.code}")
+                    withContext(Dispatchers.Main) { _mapState.value = _mapState.value.copy(isLoading = false) }
                 }
-
-            }.addOnFailureListener { exception: Exception ->
-                Log.e("MapViewModel", "âŒ Failed to search by text for $typeQuery: ${exception.message}", exception)
-                Log.e("MapViewModel", "Map will still show your location without safe havens")
-
-                _mapState.value = _mapState.value.copy(isLoading = false)
+            } catch (e: IOException) {
+                Log.e("MapViewModel", "Exception connecting to Overpass API", e)
+                withContext(Dispatchers.Main) { _mapState.value = _mapState.value.copy(isLoading = false) }
+            } catch (e: Exception) {
+                 Log.e("MapViewModel", "Exception parsing Overpass data", e)
+                 withContext(Dispatchers.Main) { _mapState.value = _mapState.value.copy(isLoading = false) }
             }
-        } catch (e: Exception) {
-            Log.e("MapViewModel", "âŒ Exception while searching for safe havens: ${e.message}", e)
-            Log.e("MapViewModel", "Map will still show your location without safe havens")
-
-            _mapState.value = _mapState.value.copy(isLoading = false)
         }
+    }
+
+    private fun parseOverpassResponse(jsonBody: String): List<SafeHaven> {
+        val havens = mutableListOf<SafeHaven>()
+        val jsonObject = JSONObject(jsonBody)
+        val elements = jsonObject.optJSONArray("elements") ?: return havens
+
+        for (i in 0 until elements.length()) {
+            val element = elements.optJSONObject(i) ?: continue
+            val id = element.optLong("id").toString()
+            val tags = element.optJSONObject("tags") ?: continue
+            
+            val name = tags.optString("name", "Unknown Amenity")
+            val amenity = tags.optString("amenity", "")
+            val healthcare = tags.optString("healthcare", "")
+
+            val type = if (amenity == "police") {
+                SafeHavenType.POLICE
+            } else if (amenity == "hospital" || healthcare == "hospital" || healthcare == "clinic") {
+                SafeHavenType.HOSPITAL
+            } else {
+                continue // Skip unknown types
+            }
+
+            var lat = element.optDouble("lat", Double.NaN)
+            var lon = element.optDouble("lon", Double.NaN)
+            
+            // "way" elements might have center instead of lat/lon
+            if (lat.isNaN() || lon.isNaN()) {
+                val center = element.optJSONObject("center")
+                if (center != null) {
+                    lat = center.optDouble("lat", Double.NaN)
+                    lon = center.optDouble("lon", Double.NaN)
+                }
+            }
+
+            val address = tags.optString("addr:street", "Address not available") + 
+                          if (tags.has("addr:housenumber")) " " + tags.optString("addr:housenumber") else ""
+
+            if (!lat.isNaN() && !lon.isNaN()) {
+                havens.add(
+                    SafeHaven(
+                        id = id,
+                        name = name,
+                        address = address.trim().ifEmpty { "Address not available" },
+                        location = GeoPoint(lat, lon),
+                        type = type
+                    )
+                )
+            }
+        }
+        return havens
     }
 }

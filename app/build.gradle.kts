@@ -9,7 +9,6 @@ plugins {
     id("com.google.gms.google-services")
 }
 
-val mapsApiKey = "AIzaSyAr_FI6_F4nRAyVzzQzuZ3jm7EBjnob3GI"
 
 android {
     namespace = "com.suraksha.app"
@@ -24,8 +23,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        resValue("string", "google_maps_key", mapsApiKey)
-        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+
     }
 
     buildTypes {
@@ -60,11 +58,10 @@ dependencies {
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
     
-    implementation("com.google.maps.android:maps-compose:4.4.1")
-    implementation("com.google.android.gms:play-services-maps:19.0.0")
-
-
-    implementation("com.google.android.libraries.places:places:3.5.0")
+    // OSMDroid for map visualization
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+    // OkHttp for Overpass API requests
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")

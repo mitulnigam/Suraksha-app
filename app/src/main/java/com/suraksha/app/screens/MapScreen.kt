@@ -1,68 +1,40 @@
-﻿package com.suraksha.app.screens
+package com.suraksha.app.screens
 
 import android.Manifest
+import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MapStyleOptions
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapProperties
-import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.MarkerState
-import com.google.maps.android.compose.rememberCameraPositionState
-import com.suraksha.app.R
 import com.suraksha.app.ui.theme.AccentBlue
-
-private const val DARK_MAP_STYLE_JSON = """
-[
-  { "elementType": "geometry", "stylers": [ { "color": "#212121" } ] },
-  { "elementType": "labels.icon", "stylers": [ { "visibility": "off" } ] },
-  { "elementType": "labels.text.fill", "stylers": [ { "color": "#757575" } ] },
-  { "elementType": "labels.text.stroke", "stylers": [ { "color": "#212121" } ] },
-  { "featureType": "administrative", "elementType": "geometry", "stylers": [ { "color": "#757575" } ] },
-  { "featureType": "administrative.country", "elementType": "labels.text.fill", "stylers": [ { "color": "#9e9e9e" } ] },
-  { "featureType": "administrative.land_parcel", "stylers": [ { "visibility": "off" } ] },
-  { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [ { "color": "#bdbdbd" } ] },
-  { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [ { "color": "#757575" } ] },
-  { "featureType": "poi.park", "elementType": "geometry", "stylers": [ { "color": "#181818" } ] },
-  { "featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [ { "color": "#616161" } ] },
-  { "featureType": "poi.park", "elementType": "labels.text.stroke", "stylers": [ { "color": "#1e1e1e" } ] },
-  { "featureType": "road", "elementType": "geometry.fill", "stylers": [ { "color": "#2c2c2c" } ] },
-  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [ { "color": "#8a8a8a" } ] },
-  { "featureType": "road.arterial", "elementType": "geometry", "stylers": [ { "color": "#373737" } ] },
-  { "featureType": "road.highway", "elementType": "geometry", "stylers": [ { "color": "#3c3c3c" } ] },
-  { "featureType": "road.highway.controlled_access", "elementType": "geometry", "stylers": [ { "color": "#4e4e4e" } ] },
-  { "featureType": "road.local", "elementType": "labels.text.fill", "stylers": [ { "color": "#616161" } ] },
-  { "featureType": "transit", "elementType": "labels.text.fill", "stylers": [ { "color": "#757575" } ] },
-  { "featureType": "water", "elementType": "geometry", "stylers": [ { "color": "#000000" } ] },
-  { "featureType": "water", "elementType": "labels.text.fill", "stylers": [ { "color": "#3d3d3d" } ] }
-]
-"""
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.ItemizedIconOverlay
+import org.osmdroid.views.overlay.ItemizedOverlayWithFocus
+import org.osmdroid.views.overlay.OverlayItem
 
 @Composable
 fun MapScreen(viewModel: MapViewModel = viewModel()) {
-
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val mapState by viewModel.mapState.collectAsState()
 
     var hasRequestedPermissions by remember { mutableStateOf(false) }
@@ -74,19 +46,18 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
         val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
 
         if (fineLocationGranted || coarseLocationGranted) {
-            android.util.Log.d("MapScreen", "âœ… Location permission granted - triggering refresh")
+            android.util.Log.d("MapScreen", "✅ Location permission granted - triggering refresh")
             viewModel.refreshMap()
         } else {
-            android.util.Log.w("MapScreen", "âš ï¸ Location permission denied")
+            android.util.Log.w("MapScreen", "⚠️ Location permission denied")
         }
     }
 
     LaunchedEffect(Unit) {
-        android.util.Log.d("MapScreen", "ðŸ”„ MapScreen entered")
-
+        android.util.Log.d("MapScreen", "🔄 MapScreen entered")
         if (!hasRequestedPermissions) {
             hasRequestedPermissions = true
-            android.util.Log.d("MapScreen", "ðŸ“‹ Requesting location permissions...")
+            android.util.Log.d("MapScreen", "📋 Requesting location permissions...")
             locationPermissionLauncher.launch(
                 arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -94,30 +65,113 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                 )
             )
         } else {
-
-            android.util.Log.d("MapScreen", "ðŸ”„ Refreshing map data...")
+            android.util.Log.d("MapScreen", "🔄 Refreshing map data...")
             viewModel.refreshMap()
         }
     }
 
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(20.5937, 78.9629), 4f)
-    }
+    // Configure OSMDroid user agent
+    Configuration.getInstance().userAgentValue = context.packageName
 
-    LaunchedEffect(mapState.userLocation) {
-        mapState.userLocation?.let {
-            android.util.Log.d("MapScreen", "âœ… Moving camera to user location: $it")
-            cameraPositionState.animate(
-                update = CameraUpdateFactory.newLatLngZoom(it, 15f),
-                durationMs = 1500
+    val mapView = remember {
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            controller.setZoom(15.0)
+            controller.setCenter(GeoPoint(20.5937, 78.9629)) // Default India
+            
+            // Apply dark mode filter to match app theme
+            val inverseMatrix = ColorMatrix(
+                floatArrayOf(
+                    -1.0f, 0.0f, 0.0f, 0.0f, 255f,
+                    0.0f, -1.0f, 0.0f, 0.0f, 255f,
+                    0.0f, 0.0f, -1.0f, 0.0f, 255f,
+                    0.0f, 0.0f, 0.0f, 1.0f, 0.0f
+                )
             )
-        } ?: run {
-            android.util.Log.w("MapScreen", "âš ï¸ User location not available yet - showing default India view")
+            val destinationColor = Color.parseColor("#FF2A2A2A")
+            val lr = (255.0f - Color.red(destinationColor))
+            val lg = (255.0f - Color.green(destinationColor))
+            val lb = (255.0f - Color.blue(destinationColor))
+            val modifyMatrix = ColorMatrix(
+                floatArrayOf(
+                    lr / 255.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                    0.0f, lg / 255.0f, 0.0f, 0.0f, 0.0f,
+                    0.0f, 0.0f, lb / 255.0f, 0.0f, 0.0f,
+                    0.0f, 0.0f, 0.0f, 1.0f, 0.0f
+                )
+            )
+            modifyMatrix.preConcat(inverseMatrix)
+            overlayManager.tilesOverlay.setColorFilter(ColorMatrixColorFilter(modifyMatrix))
         }
     }
 
-    LaunchedEffect(mapState.isLoading, mapState.safeHavens.size) {
-        android.util.Log.d("MapScreen", "ðŸ“Š Map State: Loading=${mapState.isLoading}, SafeHavens=${mapState.safeHavens.size}, Location=${mapState.userLocation != null}")
+    // Handle MapView lifecycle
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            mapView.onDetach()
+        }
+    }
+
+    // Update markers and camera
+    LaunchedEffect(mapState) {
+        mapView.overlays.clear()
+        
+        val items = ArrayList<OverlayItem>()
+
+        // User Location Marker
+        mapState.userLocation?.let { userLocation ->
+            val userMarker = OverlayItem("You", "Current Location", userLocation)
+            val userIcon = ContextCompat.getDrawable(context, android.R.drawable.ic_menu_mylocation)?.mutate()
+            userIcon?.setTint(Color.CYAN)
+            userMarker.setMarker(userIcon)
+            items.add(userMarker)
+
+            // Center camera on user
+            mapView.controller.animateTo(userLocation)
+        }
+
+        // Safe Haven Markers
+        mapState.safeHavens.forEach { haven ->
+            val title = if (haven.type == SafeHavenType.POLICE) "🚓 Police: ${haven.name}" else "🏥 Hospital: ${haven.name}"
+            val marker = OverlayItem(title, haven.address, haven.location)
+            
+            val icon = ContextCompat.getDrawable(context, android.R.drawable.ic_menu_myplaces)?.mutate()
+            if (haven.type == SafeHavenType.POLICE) {
+                icon?.setTint(Color.RED)
+            } else {
+                icon?.setTint(Color.GREEN)
+            }
+            marker.setMarker(icon)
+            items.add(marker)
+        }
+
+        if (items.isNotEmpty()) {
+            val mOverlay = ItemizedOverlayWithFocus(
+                items,
+                object : ItemizedIconOverlay.OnItemGestureListener<OverlayItem> {
+                    override fun onItemSingleTapUp(index: Int, item: OverlayItem): Boolean {
+                        return true
+                    }
+                    override fun onItemLongPress(index: Int, item: OverlayItem): Boolean {
+                        return false
+                    }
+                }, context
+            )
+            mOverlay.setFocusItemsOnTap(true)
+            mapView.overlays.add(mOverlay)
+        }
+        
+        mapView.invalidate()
     }
 
     Column(
@@ -143,15 +197,14 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black.copy(alpha = 0.6f))
+                .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.6f))
                 .padding(8.dp)
         ) {
-
             val policeCount = mapState.safeHavens.count { it.type == SafeHavenType.POLICE }
             val hospitalCount = mapState.safeHavens.count { it.type == SafeHavenType.HOSPITAL }
 
             val summaryText = if (mapState.safeHavens.isEmpty() && !mapState.isLoading) {
-                "Showing your location â€¢ Safe havens search unavailable"
+                "Showing your location • Safe havens search unavailable"
             } else if (mapState.isLoading) {
                 "Loading safe havens..."
             } else {
@@ -161,7 +214,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
             Text(
                 text = summaryText,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White,
+                color = androidx.compose.ui.graphics.Color.White,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -174,13 +227,13 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                         modifier = Modifier
                             .padding(end = 4.dp)
                             .clip(androidx.compose.foundation.shape.CircleShape)
-                            .background(Color.Cyan)
+                            .background(androidx.compose.ui.graphics.Color.Cyan)
                             .padding(6.dp)
                     )
                     Text(
                         text = "You",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White,
+                        color = androidx.compose.ui.graphics.Color.White,
                         modifier = Modifier.padding(start = 4.dp)
                     )
                 }
@@ -189,13 +242,13 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                         modifier = Modifier
                             .padding(end = 4.dp)
                             .clip(androidx.compose.foundation.shape.CircleShape)
-                            .background(Color.Red)
+                            .background(androidx.compose.ui.graphics.Color.Red)
                             .padding(6.dp)
                     )
                     Text(
                         text = "Police Station",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White,
+                        color = androidx.compose.ui.graphics.Color.White,
                         modifier = Modifier.padding(start = 4.dp)
                     )
                 }
@@ -204,13 +257,13 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                         modifier = Modifier
                             .padding(end = 4.dp)
                             .clip(androidx.compose.foundation.shape.CircleShape)
-                            .background(Color.Green)
+                            .background(androidx.compose.ui.graphics.Color.Green)
                             .padding(6.dp)
                     )
                     Text(
                         text = "Hospital",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White,
+                        color = androidx.compose.ui.graphics.Color.White,
                         modifier = Modifier.padding(start = 4.dp)
                     )
                 }
@@ -220,51 +273,16 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(1f)
+                .padding(16.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(androidx.compose.ui.graphics.Color.DarkGray),
             contentAlignment = Alignment.Center
         ) {
-            GoogleMap(
-                modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState,
-                properties = MapProperties(
-                    isMyLocationEnabled = true,
-                    mapStyleOptions = MapStyleOptions(DARK_MAP_STYLE_JSON)
-                ),
-                uiSettings = MapUiSettings(
-                    zoomControlsEnabled = true,
-                    mapToolbarEnabled = false,
-                    myLocationButtonEnabled = true
-                )
-            ) {
-                mapState.userLocation?.let {
-                    Marker(
-                        state = MarkerState(position = it),
-                        title = "Your Location",
-                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN)
-                    )
-                }
-
-                mapState.safeHavens.forEach { haven ->
-                    val markerColor = if (haven.type == SafeHavenType.POLICE) {
-                        BitmapDescriptorFactory.HUE_RED
-                    } else {
-                        BitmapDescriptorFactory.HUE_GREEN
-                    }
-
-                    val markerTitle = if (haven.type == SafeHavenType.POLICE) {
-                        "ðŸš“ Police Station: ${haven.name}"
-                    } else {
-                        "ðŸ¥ Hospital: ${haven.name}"
-                    }
-
-                    Marker(
-                        state = MarkerState(position = haven.location),
-                        title = markerTitle,
-                        snippet = haven.address,
-                        icon = BitmapDescriptorFactory.defaultMarker(markerColor)
-                    )
-                }
-            }
+            AndroidView(
+                factory = { mapView },
+                modifier = Modifier.fillMaxSize()
+            )
 
             if (mapState.isLoading) {
                 CircularProgressIndicator(color = AccentBlue)
