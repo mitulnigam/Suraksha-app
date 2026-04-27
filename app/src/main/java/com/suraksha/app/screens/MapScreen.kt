@@ -1,5 +1,7 @@
 package com.suraksha.app.screens
 
+import com.suraksha.app.data.CommunityAlertType
+
 import android.Manifest
 import android.graphics.Color
 import android.graphics.ColorMatrix
@@ -155,6 +157,25 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
             items.add(marker)
         }
 
+        // Community Alert Markers
+        mapState.communityAlerts.forEach { alert ->
+            val color = when (alert.type) {
+                CommunityAlertType.CRIME -> Color.RED
+                CommunityAlertType.ACCIDENT -> Color.parseColor("#FFA500") // Orange
+                CommunityAlertType.SUSPICIOUS -> Color.YELLOW
+            }
+            val title = when (alert.type) {
+                CommunityAlertType.CRIME -> "⚠️ CRIME REPORT"
+                CommunityAlertType.ACCIDENT -> "🚗 ACCIDENT"
+                CommunityAlertType.SUSPICIOUS -> "👤 SUSPICIOUS ACTIVITY"
+            }
+            val marker = OverlayItem(title, alert.description, org.osmdroid.util.GeoPoint(alert.location.latitude, alert.location.longitude))
+            val icon = ContextCompat.getDrawable(context, android.R.drawable.ic_dialog_alert)?.mutate()
+            icon?.setTint(color)
+            marker.setMarker(icon)
+            items.add(marker)
+        }
+
         if (items.isNotEmpty()) {
             val mOverlay = ItemizedOverlayWithFocus(
                 items,
@@ -203,12 +224,12 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
             val policeCount = mapState.safeHavens.count { it.type == SafeHavenType.POLICE }
             val hospitalCount = mapState.safeHavens.count { it.type == SafeHavenType.HOSPITAL }
 
-            val summaryText = if (mapState.safeHavens.isEmpty() && !mapState.isLoading) {
-                "Showing your location • Safe havens search unavailable"
+            val summaryText = if (mapState.safeHavens.isEmpty() && mapState.communityAlerts.isEmpty() && !mapState.isLoading) {
+                "Showing your location • Search unavailable"
             } else if (mapState.isLoading) {
-                "Loading safe havens..."
+                "Loading data..."
             } else {
-                "Found: $policeCount Police Stations, $hospitalCount Hospitals (within 5km)"
+                "Nearby: $policeCount Police, $hospitalCount Hospitals, ${mapState.communityAlerts.size} Community Alerts"
             }
 
             Text(

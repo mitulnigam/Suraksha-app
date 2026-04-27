@@ -1,4 +1,7 @@
-﻿package com.suraksha.app.screens
+package com.suraksha.app.screens
+
+import androidx.navigation.NavController
+import com.suraksha.app.Screen
 
 import android.content.Context
 import android.util.Log
@@ -48,7 +51,7 @@ enum class AlertState {
 }
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(navController: NavController) {
     var alertState by remember { mutableStateOf(AlertState.IDLE) }
 
     var countdownSeconds by remember { mutableIntStateOf(10) }
@@ -153,7 +156,8 @@ fun HomeScreen() {
         FeatureCardsRow(
             isShakeEnabled = isShakeEnabled,
             isVoiceEnabled = isVoiceEnabled,
-            isFallEnabled = isFallEnabled
+            isFallEnabled = isFallEnabled,
+            onFirstAidClick = { navController.navigate(Screen.FirstAid.route) }
         )
     }
 }
@@ -330,29 +334,46 @@ fun SOSButton(
 fun FeatureCardsRow(
     isShakeEnabled: Boolean,
     isVoiceEnabled: Boolean,
-    isFallEnabled: Boolean
+    isFallEnabled: Boolean,
+    onFirstAidClick: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        FeatureCard(
-            title = "Hotword",
-            description = if (isVoiceEnabled) "ON" else "OFF",
-            iconRes = R.drawable.ic_voice
-        )
-        FeatureCard(
-            title = "Shake Alert",
-            description = if (isShakeEnabled) "ON" else "OFF",
-            iconRes = R.drawable.ic_shake
-        )
-        FeatureCard(
-            title = "Fall Detection",
-            description = if (isFallEnabled) "ON" else "OFF",
-            iconRes = R.drawable.ic_fall
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            FeatureCard(
+                title = "Hotword",
+                description = if (isVoiceEnabled) "ON" else "OFF",
+                iconRes = R.drawable.ic_voice
+            )
+            FeatureCard(
+                title = "Shake Alert",
+                description = if (isShakeEnabled) "ON" else "OFF",
+                iconRes = R.drawable.ic_shake
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            FeatureCard(
+                title = "Fall Detection",
+                description = if (isFallEnabled) "ON" else "OFF",
+                iconRes = R.drawable.ic_fall
+            )
+            FeatureCard(
+                title = "First Aid",
+                description = "Chat Assistant",
+                iconRes = R.drawable.ic_chat,
+                onClick = onFirstAidClick
+            )
+        }
     }
 }
 
@@ -361,13 +382,14 @@ fun RowScope.FeatureCard(
     title: String,
     description: String,
     iconRes: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     Card(
         modifier = modifier
             .weight(1f)
             .height(110.dp)
-            .clickable {  },
+            .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(

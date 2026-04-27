@@ -1,4 +1,4 @@
-﻿package com.suraksha.app
+package com.suraksha.app
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
@@ -34,6 +34,7 @@ fun AppMainNavigation(rootNavController: NavHostController) {
                     BottomNavItem.Home,
                     BottomNavItem.Contacts,
                     BottomNavItem.Map,
+                    BottomNavItem.Route,
                     BottomNavItem.Settings
                 )
 
@@ -69,7 +70,7 @@ fun AppMainNavigation(rootNavController: NavHostController) {
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Home.route) { HomeScreen() }
+            composable(Screen.Home.route) { HomeScreen(navController = navController) }
             composable(Screen.Contacts.route) { ContactsScreen() }
             composable(Screen.Map.route) { MapScreen() }
 
@@ -79,6 +80,9 @@ fun AppMainNavigation(rootNavController: NavHostController) {
                     rootNavController = rootNavController
                 )
             }
+            composable(Screen.Route.route) { RouteScreen() }
+            composable(Screen.FirstAid.route) { FirstAidScreen() }
+            composable(Screen.CommunityAlerts.route) { CommunityAlertsScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
             composable(Screen.AboutUs.route) { AboutUsScreen(navController = navController) }
         }

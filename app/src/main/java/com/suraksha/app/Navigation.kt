@@ -1,4 +1,4 @@
-﻿package com.suraksha.app
+package com.suraksha.app
 
 
 sealed class Screen(val route: String) {
@@ -8,6 +8,9 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings")
     object Profile : Screen("profile")
     object AboutUs : Screen("about_us")
+    object Route : Screen("route")
+    object FirstAid : Screen("first_aid")
+    object CommunityAlerts : Screen("community_alerts")
 }
 
 sealed class AuthScreen(val route: String) {

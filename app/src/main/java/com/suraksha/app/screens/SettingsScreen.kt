@@ -1,4 +1,4 @@
-﻿package com.suraksha.app.screens
+package com.suraksha.app.screens
 
 import android.content.Context
 import android.content.Intent
@@ -195,6 +195,13 @@ fun SettingsScreen(
             }
 
             item { SettingHeader(title = "OTHER") }
+            item {
+                SettingRow(
+                    title = "Community Alerts",
+                    iconRes = R.drawable.ic_alert,
+                    onClick = { navController.navigate(Screen.CommunityAlerts.route) }
+                )
+            }
             item {
                 SettingRow(title = "Notifications", iconRes = R.drawable.ic_notification, onClick = {})
             }
