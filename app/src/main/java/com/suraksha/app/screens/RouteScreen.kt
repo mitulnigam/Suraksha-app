@@ -215,13 +215,138 @@ fun RouteScreen(viewModel: RouteViewModel = viewModel()) {
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column {
-                                Text(if (routeState.isSafest) "Safest Mode" else "Shortest Mode", style = MaterialTheme.typography.bodySmall, color = if (routeState.isSafest) Color.Green else Color.Cyan)
-                                Switch(checked = routeState.isSafest, onCheckedChange = { viewModel.toggleRouteType() })
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Route mode selector — full width, card style
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            horizontalArrangement = Arrangement.spacedBy(0.dp)
+                        ) {
+                            // Safest button
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp, topEnd = 0.dp, bottomEnd = 0.dp))
+                                    .background(
+                                        if (routeState.isSafest)
+                                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                listOf(Color(0xFF1B5E20), Color(0xFF2E7D32))
+                                            )
+                                        else
+                                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                listOf(Color.Transparent, Color.Transparent)
+                                            )
+                                    )
+                                    .clickable { if (!routeState.isSafest) viewModel.toggleRouteType() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Shield,
+                                        contentDescription = null,
+                                        tint = if (routeState.isSafest) Color(0xFF69F0AE) else Color.Gray,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "Safest",
+                                            fontSize = 13.sp,
+                                            fontWeight = if (routeState.isSafest) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (routeState.isSafest) Color(0xFF69F0AE) else Color.Gray
+                                        )
+                                        if (routeState.isSafest) {
+                                            Text(
+                                                "Avoids risk zones",
+                                                fontSize = 9.sp,
+                                                color = Color(0xFF69F0AE).copy(alpha = 0.7f)
+                                            )
+                                        }
+                                    }
+                                }
                             }
-                            Button(onClick = { viewModel.calculateRoute() }, enabled = !routeState.isLoading && routeState.startLocation != null && routeState.destination != null, colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)) {
-                                if (routeState.isLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White) else Text("Find Route")
+
+                            // Divider
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .fillMaxHeight()
+                                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                            )
+
+                            // Shortest button
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 16.dp, bottomEnd = 16.dp))
+                                    .background(
+                                        if (!routeState.isSafest)
+                                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                listOf(Color(0xFF0D2A3D), Color(0xFF01579B))
+                                            )
+                                        else
+                                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                listOf(Color.Transparent, Color.Transparent)
+                                            )
+                                    )
+                                    .clickable { if (routeState.isSafest) viewModel.toggleRouteType() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Speed,
+                                        contentDescription = null,
+                                        tint = if (!routeState.isSafest) Color.Cyan else Color.Gray,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            "Shortest",
+                                            fontSize = 13.sp,
+                                            fontWeight = if (!routeState.isSafest) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (!routeState.isSafest) Color.Cyan else Color.Gray
+                                        )
+                                        if (!routeState.isSafest) {
+                                            Text(
+                                                "Fastest path",
+                                                fontSize = 9.sp,
+                                                color = Color.Cyan.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Find Route button — full width below the selector
+                        Button(
+                            onClick = { viewModel.calculateRoute() },
+                            enabled = !routeState.isLoading && routeState.startLocation != null && routeState.destination != null,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                        ) {
+                            if (routeState.isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Finding Route…", color = Color.White, fontWeight = FontWeight.Bold)
+                            } else {
+                                Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Find Route", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
                     }

@@ -82,7 +82,7 @@ fun AppMainNavigation(rootNavController: NavHostController) {
             }
             composable(Screen.Route.route) { RouteScreen() }
             composable(Screen.FirstAid.route) { FirstAidScreen() }
-            composable(Screen.CommunityAlerts.route) { CommunityAlertsScreen() }
+            composable(Screen.CommunityAlerts.route) { CommunityAlertsScreen(navController = navController) }
             composable(Screen.Profile.route) { ProfileScreen() }
             composable(Screen.AboutUs.route) { AboutUsScreen(navController = navController) }
         }

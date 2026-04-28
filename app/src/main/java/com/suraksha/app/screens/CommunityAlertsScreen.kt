@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.suraksha.app.data.CommunityAlert
 import com.suraksha.app.data.CommunityAlertType
 import com.suraksha.app.ui.theme.AccentBlue
@@ -26,17 +28,26 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityAlertsScreen(
-    viewModel: CommunityAlertViewModel = viewModel(),
-    mapViewModel: MapViewModel = viewModel()
+    navController: NavController,
+    viewModel: CommunityAlertViewModel = viewModel()
 ) {
     val alerts by viewModel.alerts.collectAsState()
-    val mapState by mapViewModel.mapState.collectAsState()
+    val isPosting by viewModel.isPosting.collectAsState()
+    val currentLocation by viewModel.currentLocation.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Community Alerts", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
@@ -48,7 +59,15 @@ fun CommunityAlertsScreen(
                 containerColor = AccentBlue,
                 contentColor = Color.White
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Create Alert")
+                if (isPosting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(Icons.Default.Add, contentDescription = "Create Alert")
+                }
             }
         }
     ) { paddingValues ->
@@ -58,6 +77,42 @@ fun CommunityAlertsScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
+            // Location status banner
+            if (currentLocation == null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = AccentBlue)
+                    Text(
+                        "Fetching your location…",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                val (lat, lon) = currentLocation!!
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(AccentBlue.copy(alpha = 0.1f))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("📍", fontSize = 14.sp)
+                    Text(
+                        "Your location: ${"%,.4f".format(lat)}, ${"%,.4f".format(lon)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AccentBlue
+                    )
+                }
+            }
+
             if (alerts.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No active alerts in your community.", color = Color.Gray)
@@ -68,7 +123,7 @@ fun CommunityAlertsScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(alerts) { alert ->
+                    items(alerts, key = { it.id }) { alert ->
                         AlertCard(alert)
                     }
                 }
@@ -78,10 +133,12 @@ fun CommunityAlertsScreen(
 
     if (showCreateDialog) {
         CreateAlertDialog(
+            currentLocation = currentLocation,
             onDismiss = { showCreateDialog = false },
             onSubmit = { type, desc ->
-                mapState.userLocation?.let { location ->
-                    viewModel.postAlert(type, desc, location.latitude, location.longitude)
+                val loc = currentLocation
+                if (loc != null) {
+                    viewModel.postAlert(type, desc, loc.first, loc.second)
                 }
                 showCreateDialog = false
             }
@@ -93,8 +150,8 @@ fun CommunityAlertsScreen(
 fun AlertCard(alert: CommunityAlert) {
     val color = when (alert.type) {
         CommunityAlertType.CRIME -> UrgentRed
-        CommunityAlertType.ACCIDENT -> Color(0xFFFF9800) // Orange
-        CommunityAlertType.SUSPICIOUS -> Color(0xFFFBC02D) // Yellow
+        CommunityAlertType.ACCIDENT -> Color(0xFFFF9800)
+        CommunityAlertType.SUSPICIOUS -> Color(0xFFFBC02D)
     }
 
     val typeLabel = when (alert.type) {
@@ -128,11 +185,12 @@ fun AlertCard(alert: CommunityAlert) {
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
-            
-            // Distance Text (If user location is available)
-            // Note: In a real app, use Location.distanceBetween
+
+            // Show actual coordinates from Firestore
+            val lat = alert.location.latitude
+            val lon = alert.location.longitude
             Text(
-                text = "📍 Nearby Area",
+                text = "📍 ${"%,.4f".format(lat)}, ${"%,.4f".format(lon)}",
                 style = MaterialTheme.typography.labelMedium,
                 color = AccentBlue
             )
@@ -165,7 +223,11 @@ fun AlertCard(alert: CommunityAlert) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateAlertDialog(onDismiss: () -> Unit, onSubmit: (CommunityAlertType, String) -> Unit) {
+fun CreateAlertDialog(
+    currentLocation: Pair<Double, Double>?,
+    onDismiss: () -> Unit,
+    onSubmit: (CommunityAlertType, String) -> Unit
+) {
     var selectedType by remember { mutableStateOf(CommunityAlertType.SUSPICIOUS) }
     var description by remember { mutableStateOf("") }
 
@@ -174,6 +236,33 @@ fun CreateAlertDialog(onDismiss: () -> Unit, onSubmit: (CommunityAlertType, Stri
         title = { Text("Report Safety Alert") },
         text = {
             Column {
+                // Location preview
+                if (currentLocation != null) {
+                    val (lat, lon) = currentLocation
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = AccentBlue.copy(alpha = 0.1f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "📍 Will post at: ${"%,.4f".format(lat)}, ${"%,.4f".format(lon)}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = AccentBlue,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = AccentBlue)
+                        Text("Waiting for GPS location…", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
                 Text("Select Type", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(bottom = 8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -205,8 +294,8 @@ fun CreateAlertDialog(onDismiss: () -> Unit, onSubmit: (CommunityAlertType, Stri
         },
         confirmButton = {
             Button(
-                onClick = { if (description.isNotBlank()) onSubmit(selectedType, description) },
-                enabled = description.isNotBlank(),
+                onClick = { if (description.isNotBlank() && currentLocation != null) onSubmit(selectedType, description) },
+                enabled = description.isNotBlank() && currentLocation != null,
                 colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
             ) {
                 Text("Post Alert", color = Color.White)

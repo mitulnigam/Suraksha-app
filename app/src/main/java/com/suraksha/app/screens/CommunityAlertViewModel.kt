@@ -1,7 +1,8 @@
 package com.suraksha.app.screens
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -9,6 +10,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
 import com.suraksha.app.data.CommunityAlert
 import com.suraksha.app.data.CommunityAlertType
+import com.suraksha.app.utils.LocationManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,19 +18,39 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.Calendar
 
-class CommunityAlertViewModel : ViewModel() {
+class CommunityAlertViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
-    
+    private val locationManager = LocationManager()
+
     private val _alerts = MutableStateFlow<List<CommunityAlert>>(emptyList())
     val alerts: StateFlow<List<CommunityAlert>> = _alerts.asStateFlow()
 
     private val _isPosting = MutableStateFlow(false)
     val isPosting: StateFlow<Boolean> = _isPosting.asStateFlow()
 
+    // Holds the last known lat/lon fetched independently of MapViewModel
+    private val _currentLocation = MutableStateFlow<Pair<Double, Double>?>(null)
+    val currentLocation: StateFlow<Pair<Double, Double>?> = _currentLocation.asStateFlow()
+
     init {
         listenForAlerts()
+        fetchLocation()
+    }
+
+    /** Fetch live location independently so posting always works. */
+    private fun fetchLocation() {
+        viewModelScope.launch {
+            try {
+                locationManager.getLocationUpdates(getApplication())
+                    .collect { location ->
+                        _currentLocation.value = Pair(location.latitude, location.longitude)
+                    }
+            } catch (e: Exception) {
+                Log.e("CommunityAlertVM", "Location fetch error", e)
+            }
+        }
     }
 
     private fun listenForAlerts() {
@@ -58,7 +80,7 @@ class CommunityAlertViewModel : ViewModel() {
                         null
                     }
                 } ?: emptyList()
-                
+
                 _alerts.value = alertList.sortedByDescending { it.timestamp }
             }
     }
@@ -66,7 +88,7 @@ class CommunityAlertViewModel : ViewModel() {
     fun postAlert(type: CommunityAlertType, description: String, lat: Double, lon: Double) {
         val user = auth.currentUser
         val expiresAt = Calendar.getInstance().apply {
-            add(Calendar.HOUR, 4) // Alerts expire after 4 hours
+            add(Calendar.HOUR, 4)
         }.time
 
         val alertData = hashMapOf(
@@ -83,6 +105,7 @@ class CommunityAlertViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 db.collection("community_alerts").add(alertData).await()
+                Log.d("CommunityAlertVM", "Alert posted successfully at ($lat, $lon)")
                 _isPosting.value = false
             } catch (e: Exception) {
                 Log.e("CommunityAlertVM", "Error posting alert", e)
